@@ -12,7 +12,7 @@ from scipy import integrate
 from .utils import BaseClass, _bcast_dtype
 from .fftlog import PowerToCorrelation, CorrelationToPower, TophatVariance
 from .jax import numpy as jnp
-from .jax import romberg, simpson, opmask, _mask_bounds, numpy_jax, register_pytree_node_class, Partial
+from .jax import romberg, simpson, _mask_bounds, numpy_jax, register_pytree_node_class, Partial
 
 
 def get_default_k_callable():
