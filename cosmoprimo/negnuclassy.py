@@ -2,7 +2,7 @@
 
 from pyclass import negnuclass
 
-from .cosmology import BaseEngine, CosmologyInputError, CosmologyComputationError
+from .cosmology import CosmologyInputError, CosmologyComputationError
 from . import classy
 
 
