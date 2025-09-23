@@ -7,6 +7,15 @@ import numpy as np
 
 from cosmoprimo import fiducial, Cosmology
 
+def test_uchuu():
+    cosmo = fiducial.UchuuPlanck2015()
+    assert cosmo['h'] == 0.6751
+    cosmo = fiducial.UchuuPlanck2018()
+    assert cosmo['h'] == 0.6766
+    cosmo = fiducial.UchuuPlanck2018DDE()
+    assert cosmo['w0_fid'] == -0.957
+    cosmo = fiducial.UchuuDESIY1DDE()
+    assert cosmo['h'] == 0.6470
 
 def test_planck():
     cosmo = fiducial.Planck2018FullFlatLCDM()

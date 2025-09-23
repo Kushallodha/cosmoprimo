@@ -1,3 +1,5 @@
+"""Return :class: 'Cosmology' of various fiducial cosmology."""
+
 import os
 import numpy as np
 
@@ -9,14 +11,17 @@ _dir_data = os.path.join(os.path.dirname(__file__), 'data')
 
 
 def UchuuPlanck2015(engine=None, extra_params=None, **params):
-    """
-    Initialize :class:`Cosmology` based on Table 4 Planck2015 TT,TE,EE+lowP+lensing.
+    """Initialize :class:`Cosmology` based on Table 4 Planck2015 TT,TE,EE+lowP+lensing.
+    
+    Note
+    ----
+    can be found in https://arxiv.org/abs/1502.01589v3
     
     Parameters
     ----------
     engine : string, default=None
         Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_no
-wiggle', 'bbks'].
+    wiggle', 'bbks'].
         If ``None``, returns current :attr:`Cosmology.engine`.
 
     extra_params : dict, default=None
@@ -29,9 +34,6 @@ wiggle', 'bbks'].
     -------
     cosmology : Cosmology
     
-    References
-    ----------
-    https://arxiv.org/abs/1502.01589v3
     """
     default_params = dict(h=0.6751, omega_cdm=0.1193, omega_b=0.02226 , Omega_k=0., sigma8=0.8150,
                            k_pivot=0.05, n_s=0.9653, m_ncdm=[0.06], neutrino_hierarchy=None, 
@@ -41,14 +43,17 @@ wiggle', 'bbks'].
 
 
 def UchuuPlanck2018(engine=None, extra_params=None, **params):
-    """
-    Initialize :class:`Cosmology` based on Table 2 Planck2018 TT,TE,EE+lowP+lensing+BAO.
+    """Initialize :class:`Cosmology` based on Table 2 Planck2018 TT,TE,EE+lowP+lensing+BAO.
+    
+    Note
+    ----
+    can be found in https://arxiv.org/abs/1807.06209
     
     Parameters
     ----------
     engine : string, default=None
         Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_no
-wiggle', 'bbks'].
+    wiggle', 'bbks'].
         If ``None``, returns current :attr:`Cosmology.engine`.
 
     extra_params : dict, default=None
@@ -60,10 +65,7 @@ wiggle', 'bbks'].
     Returns
     -------
     cosmology : Cosmology
-
-    References
-    ----------
-    https://arxiv.org/abs/1807.06209
+    
     """
     default_params = dict(h=0.6766, Omega_b=0.048975, Omega_k=0., sigma8=0.8102, k_pivot=0.05,
                           n_s=0.9665, m_ncdm=[0.06], neutrino_hierarchy=None,
@@ -73,15 +75,18 @@ wiggle', 'bbks'].
 
 
 def UchuuPlanck2018DDE(engine=None, extra_params=None, **params):
-    """
-    Initialize :class:`Cosmology` based on Table 2 Planck2018 TT,TE,EE+lowP+lensing+BAO
-    with Table 6 w0wa dark energy model.
+    """Initialize :class:`Cosmology` based on Planck2018 with Table 6 w0wa dark energy model.
+    
+    Note
+    ----
+    Planck TT,TE,EE+lowP+lensing+BAO data on Table 2 was used,
+    can be found in https://arxiv.org/abs/1807.06209
     
     Parameters
     ----------
     engine : string, default=None
         Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_no
-wiggle', 'bbks'].
+    wiggle', 'bbks'].
         If ``None``, returns current :attr:`Cosmology.engine`.
 
     extra_params : dict, default=None
@@ -93,10 +98,7 @@ wiggle', 'bbks'].
     Returns
     -------
     cosmology : Cosmology
-
-    References
-    ----------
-    https://arxiv.org/abs/1807.06209
+    
     """
     default_params = dict(h=0.6766, Omega_b=0.048975, Omega_k=0., sigma8=0.8102, k_pivot=0.05, n_s=0.9665,
                           m_ncdm=[0.06], neutrino_hierarchy=None, T_ncdm_over_cmb=constants.TNCDM_OVER_CMB, N_eff=constants.NEFF, 
@@ -104,14 +106,18 @@ wiggle', 'bbks'].
     return Cosmology(engine=engine, extra_params=extra_params, **default_params).clone(**params)
 
 def UchuuDESIY1DDE(engine=None, extra_params=None, **params):
-    """
-    Initialize :class:`Cosmology` based on Table 4 Planck2015 TT,TE,EE+lowP+lensing.
+    """Initialize :class:`Cosmology` based on Table 3 DESI+CMB w0waCDM.
+    
+    Note
+    ----
+    can be found in https://arxiv.org/abs/2404.03002
+    CMB data is used from Planck2018 https://arxiv.org/abs/1807.06209
     
     Parameters
     ----------
     engine : string, default=None
         Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_no
-wiggle', 'bbks'].
+    wiggle', 'bbks'].
         If ``None``, returns current :attr:`Cosmology.engine`.
 
     extra_params : dict, default=None
@@ -123,6 +129,7 @@ wiggle', 'bbks'].
     Returns
     -------
     cosmology : Cosmology
+    
     """
     default_params = dict(h=0.6470, Omega_m=0.3440, Omega_b=0.048975 , Omega_k=0., sigma8=0.8102, k_pivot=0.05, n_s=0.9665, 
                           m_ncdm=[0.06], neutrino_hierarchy=None, T_ncdm_over_cmb=constants.TNCDM_OVER_CMB, N_eff=constants.NEFF, 
@@ -131,9 +138,12 @@ wiggle', 'bbks'].
 
 
 def Planck2018FullFlatLCDM(engine=None, extra_params=None, **params):
-    """
-    Initialize :class:`Cosmology` based on Table 2 Planck2018 TT,TE,EE+lowP+lensing+BAO.
-
+    """Initialize :class:`Cosmology` based on Table 2 Planck2018 TT,TE,EE+lowP+lensing+BAO.
+    
+    Note
+    ----
+    can be found in https://arxiv.org/abs/1807.06209
+    
     Parameters
     ----------
     engine : string, default=None
@@ -150,9 +160,6 @@ def Planck2018FullFlatLCDM(engine=None, extra_params=None, **params):
     -------
     cosmology : Cosmology
 
-    References
-    ----------
-    https://arxiv.org/abs/1807.06209
     """
     default_params = dict(h=0.6766, omega_cdm=0.11933, omega_b=0.02242, Omega_k=0., sigma8=0.8102, k_pivot=0.05, n_s=0.9665,
                           m_ncdm=[0.06], neutrino_hierarchy=None, T_ncdm_over_cmb=constants.TNCDM_OVER_CMB, N_eff=constants.NEFF,
@@ -161,8 +168,7 @@ def Planck2018FullFlatLCDM(engine=None, extra_params=None, **params):
 
 
 def BOSS(engine=None, extra_params=None, **params):
-    """
-    Initialize :class:`Cosmology` based on BOSS fiducial cosmology.
+    """Initialize :class:`Cosmology` based on BOSS fiducial cosmology.
 
     Note
     ----
@@ -183,6 +189,7 @@ def BOSS(engine=None, extra_params=None, **params):
     Returns
     -------
     cosmology : Cosmology
+    
     """
     default_params = dict(h=0.676, Omega_m=0.31, omega_b=0.022, Omega_k=0., sigma8=0.8, k_pivot=0.05, n_s=0.97,
                           m_ncdm=[0.06], neutrino_hierarchy=None, T_ncdm_over_cmb=constants.TNCDM_OVER_CMB, N_eff=constants.NEFF,
@@ -194,8 +201,7 @@ _AbacusSummit_params_filename = os.path.join(_dir_data, 'abacus_cosmologies.csv'
 
 
 def AbacusSummit_params(name=None, filename=_AbacusSummit_params_filename, params=None):
-    """
-    Return AbacusSummit cosmological parameters.
+    """Return AbacusSummit cosmological parameters.
 
     Note
     ----
@@ -218,6 +224,7 @@ def AbacusSummit_params(name=None, filename=_AbacusSummit_params_filename, param
     toret : dict or list of dict
         If ``name`` is given, returns a dict with the cosmological parameters of following cosm.
         If ``name`` is ``None``, returns a list of dict with the cosmological parameters of all cosm.
+        
     """
     if name is not None:
         if not isinstance(name, str):
@@ -264,8 +271,7 @@ def AbacusSummit_params(name=None, filename=_AbacusSummit_params_filename, param
 
 
 def AbacusSummit(name=0, engine='class', precision=None, extra_params=None, **params):
-    """
-    Initialize :class:`Cosmology` with AbacusSummit cosmological parameters.
+    """Initialize :class:`Cosmology` with AbacusSummit cosmological parameters.
 
     Note
     ----
@@ -299,6 +305,7 @@ def AbacusSummit(name=0, engine='class', precision=None, extra_params=None, **pa
     Returns
     -------
     cosmology : Cosmology
+    
     """
     default_params = dict(k_pivot=0.05, neutrino_hierarchy=None, T_ncdm_over_cmb=constants.TNCDM_OVER_CMB, A_L=1.0)
     default_params.update(AbacusSummit_params(name=name))
@@ -335,8 +342,7 @@ def AbacusSummit(name=0, engine='class', precision=None, extra_params=None, **pa
 
 
 def AbacusSummitBase(engine='class', precision=None, extra_params=None, **params):
-    """
-    Initialize :class:`Cosmology` with base AbacusSummit cosmological parameters (Planck2018, base_plikHM_TTTEEE_lowl_lowE_lensing mean).
+    """Initialize :class:`Cosmology` with base AbacusSummit cosmological parameters (Planck2018, base_plikHM_TTTEEE_lowl_lowE_lensing mean).
 
     Note
     ----
@@ -361,6 +367,7 @@ def AbacusSummitBase(engine='class', precision=None, extra_params=None, **params
     Returns
     -------
     cosmology : Cosmology
+    
     """
     return AbacusSummit(name='000', engine=engine, precision=precision, extra_params=extra_params, **params)
 
@@ -374,19 +381,20 @@ _DESI_filename = os.path.join(_dir_data, 'desi.dat')
 
 
 def TabulatedDESI():
-    """
-    Tabulated DESI cosmology.
+    """Tabulated DESI cosmology.
 
-    Note
+    Note:
     ----
     Redshift interpolation range is [0, 10]; returned values outside this range are constant (no error is raised).
     Relative interpolation precision is 1e-7; relative difference with camb prediction is 1e-7, with astropy 1e-5 and pyccl 1e-6
     (see tests/test_tabulated.py).
+    
     """
     return DESI(engine='tabulated', extra_params={'filename': _DESI_filename, 'names': ['efunc', 'comoving_radial_distance']})
 
 
 def save_TabulatedDESI():
+    """Save tabulated DESI cosmology to a file."""
     cosmo = DESI()
     bins_log = 'np.logspace(-8, 2, 40001)'
     z = np.concatenate([[0], eval(bins_log, {'np': np})], axis=0)
