@@ -138,7 +138,7 @@ def test_desi(plot=False):
 
 
 if __name__ == '__main__':
-
+    test_uchuu()
     test_planck()
     test_boss()
     test_abacus()
