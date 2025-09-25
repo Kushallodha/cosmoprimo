@@ -81,11 +81,14 @@ if jax:
     exception = exception_jax
     from jax import vmap
     from jax.tree_util import register_pytree_node_class
+    from jax.tree_util import Partial
 else:
     exception = exception_numpy
     vmap = numpy.vectorize
     def register_pytree_node_class(cls):
         return cls
+    from functools import partial as Partial
+
 
 
 try:
