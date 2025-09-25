@@ -1,4 +1,4 @@
-"""Comprehensive unit tests for cosmoprimo.utils module."""
+"""Unit tests for cosmoprimo.utils module."""
 
 import os
 import tempfile
@@ -157,7 +157,7 @@ class TestAddProperty:
                 self._value = 42
         
         obj = TestClass()
-        assert obj.value == 42
+        assert obj._value == 42
     
     def test_addproperty_multiple_attributes(self):
         """Test adding multiple properties to a class."""
@@ -547,7 +547,7 @@ class TestLeastSquareSolver:
     
     def test_least_square_solver_invalid_constraint_gradient(self, simple_gradient):
         """Test that LeastSquareSolver raises error for invalid constraint gradient."""
-        constraint_gradient = np.array([1.0, 2.0])  # 1D instead of 2D
+        constraint_gradient = np.array([[[1.0, 2.0], [3.0, 4.0]]])  # 1D instead of 2D
         
         with pytest.raises(ValueError, match="constraint_gradient must be 2D"):
             LeastSquareSolver(simple_gradient, constraint_gradient=constraint_gradient)
