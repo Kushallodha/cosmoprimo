@@ -26,7 +26,6 @@ def test_boss():
     cosmo = fiducial.BOSS()
     assert cosmo['h'] == 0.676
 
-@pytest.mark.skip(reason="stuck during test")
 def test_abacus():
     from cosmoprimo.fiducial import AbacusSummit_params, AbacusSummit
     dcosmos = AbacusSummit_params(params=['root', 'omega_b', 'omega_cdm', 'h', 'A_s', 'n_s', 'alpha_s', 'N_ur', 'omega_ncdm', 'w0_fld', 'wa_fld'])
