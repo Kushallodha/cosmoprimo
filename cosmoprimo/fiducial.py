@@ -21,7 +21,7 @@ def UchuuPlanck2015(engine=None, extra_params=None, **params):
     ----------
     engine : string, default=None
         Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_no
-    wiggle', 'bbks'].
+        wiggle', 'bbks'].
         If ``None``, returns current :attr:`Cosmology.engine`.
 
     extra_params : dict, default=None
@@ -53,7 +53,7 @@ def UchuuPlanck2018(engine=None, extra_params=None, **params):
     ----------
     engine : string, default=None
         Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_no
-    wiggle', 'bbks'].
+        wiggle', 'bbks'].
         If ``None``, returns current :attr:`Cosmology.engine`.
 
     extra_params : dict, default=None
@@ -86,7 +86,7 @@ def UchuuPlanck2018DDE(engine=None, extra_params=None, **params):
     ----------
     engine : string, default=None
         Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_no
-    wiggle', 'bbks'].
+        wiggle', 'bbks'].
         If ``None``, returns current :attr:`Cosmology.engine`
 
     extra_params : dict, default=None
@@ -118,7 +118,7 @@ def UchuuDESIY1DDE(engine=None, extra_params=None, **params):
     ----------
     engine : string, default=None
         Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_no
-    wiggle', 'bbks'].
+        wiggle', 'bbks'].
         If ``None``, returns current :attr:`Cosmology.engine`.
 
     extra_params : dict, default=None
@@ -221,16 +221,21 @@ def AbacusSummit_params(name=None, filename=_AbacusSummit_params_filename, param
         Where Abacus cosmology parameters are saved as a 'csv' file.
 
     params : list, default=['omega_b', 'omega_cdm', 'h', 'A_s', 'n_s',
-    'alpha_s', 'N_ur', 'omega_ncdm', 'omega_k', 'tau_reio', 'w0_fld', 'wa_fld']
+        'alpha_s', 'N_ur', 'omega_ncdm', 'omega_k', 'tau_reio', 'w0_fld', 'wa_fld']
         Optionally, list of parameters to read from.
 
     Returns
     -------
     toret : dict or list of dict
-        If ``name`` is given, returns a dict with the cosmological parameters of following cosm.
+        If ``name`` is given, returns a dict with the cosmological parameters
+        of following AbacusSummit cosmology.
         If ``name`` is ``None``, returns a list of dict with the cosmological parameters
-        of all cosm.
+        of all AbacusSummit cosmologies.
 
+    Raises
+    ------
+    ValueError
+        if ''name'' is given but not found in the filename.
     """
     if name is not None:
         if not isinstance(name, str):
@@ -316,7 +321,6 @@ def AbacusSummit(name=0, engine='class', precision=None, extra_params=None, **pa
     Returns
     -------
     cosmology : Cosmology
-
     """
     default_params = dict(k_pivot=0.05, neutrino_hierarchy=None,
                           T_ncdm_over_cmb=constants.TNCDM_OVER_CMB, A_L=1.0)
@@ -324,7 +328,8 @@ def AbacusSummit(name=0, engine='class', precision=None, extra_params=None, **pa
     engine = get_engine(engine)
     default_extra_params = {}
     if engine is not None and engine.name == 'class':
-        default_extra_params = {'recombination': 'HyRec'}  # {'recombination': 'HyRec', 'sBBN file': 'bbn/sBBN.dat'}
+        default_extra_params = {'recombination': 'HyRec'}
+        # {'recombination': 'HyRec', 'sBBN file': 'bbn/sBBN.dat'}
         # TODO: change this for Y3? ~5e-5 change in rs_drag
         if precision == 'base':
             prec = dict(tol_ncdm_bg=1.e-10, recfast_Nz0=100000, tol_thermo_integration=1.e-5,
