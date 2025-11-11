@@ -113,12 +113,12 @@ class EisensteinHuEngine(BaseEngine):
                     * self._np.sqrt((17.2 * self.omega_m) ** 2 + 1)
 
     def _rescale_sigma8(self):
-        """Rescale perturbative quantities to match input sigma8.
+        """Rescale quantities to match input sigma8.
 
         Returns
         -------
         _rsigma8 : float
-            Rescaling factor for .
+            Rescaling factor.
         """
         if getattr(self, '_rsigma8', None) is not None:
             return self._rsigma8
@@ -272,7 +272,9 @@ class Primordial(BaseSection):
 
         .. math::
 
-            \mathcal{P_R}(k) = A_s \left (\frac{k}{k_\mathrm{pivot}} \right )^{n_s - 1 + 1/2 \alpha_s \ln(k/k_\mathrm{pivot}) + 1/6 \beta_s \ln(k/k_\mathrm{pivot})^2}
+            \mathcal{P_R}(k) = A_s \left (\frac{k}{k_\mathrm{pivot}} \right )^
+            {n_s - 1 + 1/2 \alpha_s \ln(k/k_\mathrm{pivot}) +
+            1/6 \beta_s \ln(k/k_\mathrm{pivot})^2}
 
         See also: eq. 2 of `this reference <https://arxiv.org/abs/1303.5076>`_.
 

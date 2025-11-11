@@ -42,7 +42,7 @@ def test_abacus():
         cosmo = AbacusSummit('0')
 
     try: from abacusnbody import metadata
-    except ImportError: metadata = None
+    except ImportError: metadata = None # pragma: no cover
 
     if metadata is not None:
         print('With abacusnbody')
@@ -58,7 +58,7 @@ def test_abacus():
             cosmo = AbacusSummit(root)
             z = np.array(list(meta['GrowthTable'].keys()))
             dz_ref = np.array(list(meta['GrowthTable'].values()))
-            if plot and root == '000':
+            if plot and root == '000': # pragma: no cover
                 from matplotlib import pyplot as plt
                 plt.plot(z, dz_ref * (1 + z), label='abacusnbody')
                 dz_test = cosmo.growth_factor(z)
@@ -117,16 +117,16 @@ def test_desi(plot=False):
     assert np.allclose(cosmo['k_pivot'], 0.05, rtol=1e-9, atol=1e-9)
     assert np.allclose(cosmo.get_primordial().k_pivot * cosmo.h, 0.05, rtol=1e-9, atol=1e-9)
     assert np.allclose(cosmo.get_thermodynamics().tau_reio, 0.0544, rtol=1e-9, atol=1e-9)
-
+    curdir = os.path.dirname(os.path.abspath(__file__)) 
     fo = cosmo.get_fourier()
     for of, fn in zip(['cb', 'cb', 'm'], ['AbacusSummitBase_CLASS_pk_cb.txt', 'abacus_cosm000_CLASSv3.1.1.00_z2_pk_cb.dat', 'abacus_cosm000_CLASSv3.1.1.00_z2_pk.dat']):
         pk = fo.pk_interpolator(of='delta_{}'.format(of)).to_1d(z=1.)
         # pk(np.logspace(-5.99, 1.99, 1000))
-        fn = os.path.join('fiducial', fn)
+        fn = os.path.join(curdir, 'fiducial', fn)
         kref, pkref = np.loadtxt(fn, unpack=True)
         mask = (kref >= pk.k[0]) & (kref <= pk.k[-1])
         kref, pkref = kref[mask], pkref[mask]
-        if plot:
+        if plot: # pragma: no cover
             plt.plot(kref, pk(kref) / pkref)
             plt.xscale('log')
             plt.show()
@@ -134,11 +134,25 @@ def test_desi(plot=False):
 
     cosmo = fiducial.DESI(sigma8=1.)
     assert np.allclose(cosmo.get_fourier().sigma8_m, 1., rtol=1e-4, atol=1e-9)
+    assert fiducial.TabulatedDESI().get_params(of='extra')['names'][0] == 'efunc'
+
+def test_save_tabulatedDESI(tmp_path, monkeypatch):
+    tmp_fn = tmp_path / 'desi_test.dat'
+    monkeypatch.setattr(fiducial, '_DESI_filename', str(tmp_fn))
+    fiducial.save_TabulatedDESI()
+    assert os.path.exists(tmp_fn)
+    with open(tmp_fn, 'r') as f:
+        header1 = f.readline()
+        header2 = f.readline()
+    assert '# z = [0] + np.logspace(-8, 2, 40001)' in header1
+    assert '# z efunc(z) comoving_radial_distance(z) [Mpc/h]' in header2
 
 
-if __name__ == '__main__':
+
+if __name__ == '__main__': # pragma: no cover
     test_uchuu()
     test_planck()
     test_boss()
     test_abacus()
     test_desi(plot=False)
+    test_save_tabulatedDESI()

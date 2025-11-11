@@ -151,8 +151,8 @@ class Transfer(BaseSection):
                 growth = (self._frac_cb ** (0.7 / self._p_cb) + tmp2) ** (self._p_cb / 0.7) * tmp1
             else:
                 raise CosmologyError(
-                    'No {} transfer function can be computed (choices are ["delta_cb", "delta_m"]).'\
-                        .format(of)
+                    'No {} transfer function can be computed \
+                        (choices are ["delta_cb", "delta_m"]).'.format(of)
                     )
         else:
             growth = growth_k0 = np.ones_like(z)

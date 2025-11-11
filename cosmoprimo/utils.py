@@ -19,8 +19,7 @@ def mkdir(dirname):
 
 
 class BaseClass(object):
-    """
-    Base class to be used throughout the **cosmoprimo** package.
+    """Base class to be used throughout the **cosmoprimo** package.
     Implements a :meth:`copy` method.
     """
     def __copy__(self):
@@ -34,7 +33,6 @@ class BaseClass(object):
 
 
 def addproperty(*attrs):
-
     """Add properties ``attrs`` to class ``cls`` (assumed to be internally stored as '_attr')."""
 
     def decorator(cls):
