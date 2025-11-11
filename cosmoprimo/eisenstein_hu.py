@@ -312,7 +312,8 @@ class Primordial(BaseSection):
 
 
 class Transfer(BaseSection):
-    """Eisenstein & Hu matter transfer function.
+    """
+    Eisenstein & Hu matter transfer function.
     Calculates transfer function with BAO wiggles.
 
     References

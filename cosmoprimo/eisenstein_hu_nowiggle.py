@@ -1,7 +1,8 @@
 import numpy as np
 
 from .cosmology import BaseSection
-from .eisenstein_hu import EisensteinHuEngine
+# not used directly, but needed
+from .eisenstein_hu import EisensteinHuEngine, Background, Thermodynamics, Primordial, Fourier
 
 
 class EisensteinHuNoWiggleEngine(EisensteinHuEngine):

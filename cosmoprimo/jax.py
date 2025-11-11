@@ -20,7 +20,7 @@ try:
     config.update('jax_enable_x64', True)
     from jax import numpy, scipy
     array_types = []
-    for line in ['jaxlib.xla_extension.DeviceArrayBase', 'type(numpy.array(0))', 'jax.core.Tracer']:
+    for line in ['jax.Array', 'type(numpy.array(0))', 'jax.core.Tracer']:
         try:
             array_types.append(eval(line))
         except AttributeError:
