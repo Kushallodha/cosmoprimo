@@ -113,7 +113,7 @@ class EisensteinHuEngine(BaseEngine):
                     * self._np.sqrt((17.2 * self.omega_m) ** 2 + 1)
 
     def _rescale_sigma8(self):
-        """Rescale quantities to match input sigma8.
+        """Rescale power spectrum to the provided ``sigma8`` normalisation  at :math:`z = 0`.
 
         Returns
         -------
@@ -435,8 +435,13 @@ class Fourier(BaseSection):
             )
 
     def sigma_rz(self, r, z, of='delta_m', **kwargs):
-        r"""Return the r.m.s. of `of` perturbations
-        in sphere of :math:`r \mathrm{Mpc}/h`.
+        r"""
+        Return the r.m.s. of perturbations in a sphere of :math:`r`, i.e.:
+
+        .. math::
+
+            \sigma_{r}(z) = \sqrt{\frac{1}{2 \pi^{2}} \int dk k^{2} P(k, z) W^{2}(kr)}
+
         No distinction is made between baryons and CDM.
 
         Parameters

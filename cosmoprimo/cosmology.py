@@ -70,8 +70,14 @@ def _compute_ncdm_momenta(T_eff, m, z, method='laguerre', epsabs=1e-7, epsrel=1e
     z : float, array
         Redshift.
 
+    method : string, default='laguerre'
+        Integration method, one of ['quad', 'laguerre'].
+
+    epsabs : float, default=1e-7
+        Absolute precision (for :meth:`scipy.integrate.quad` integration).
+
     epsrel : float, default=1e-7
-        Relative precision (for :meth:`scipy.integrate.quad` integration).
+        Relative precision (for :meth:`scipy.integrate.quad` integration).    
 
     out : string, default='rho'
         If 'rho', return energy density.
@@ -82,6 +88,12 @@ def _compute_ncdm_momenta(T_eff, m, z, method='laguerre', epsabs=1e-7, epsrel=1e
     -------
     out : float, array
         For each input redshift, required momentum, in units of :math:`10^{10} M_{\odot} / \mathrm{Mpc}^{3}` (/ :math:`\mathrm{eV}` if ``out`` is 'drhodm')
+
+    Raises
+    ------
+    ValueError
+        If ``out`` is not one of ['rho', 'drhodm', 'p'].
+    
     """
     jnp = numpy_jax(T_eff, m, z)
 
@@ -206,7 +218,32 @@ compute_ncdm_momenta = _compute_ncdm_momenta
 
 def _compute_rs_cosmomc(omega_b, omega_m, hubble_function, epsabs=1e-7, epsrel=1e-7):
 
-    """Return sound horizon in proper Mpc, and redshift of the last scattering surface in the CosmoMC approximation."""
+    """Return sound horizon in proper Mpc, and redshift of the last scattering surface in the CosmoMC approximation.
+    
+    Parameters
+    ----------
+    omega_b : float
+        Physical baryon density :math:`\Omega_{b} h^{2}`.
+
+    omega_m : float
+        Physical matter density :math:`\Omega_{m} h^{2}`.
+
+    hubble_function : callable
+        Function returning H(z) in km/s/Mpc.
+
+    epsabs : float, default=1e-7
+        Absolute precision for integration.
+
+    epsrel : float, default=1e-7
+        Relative precision for integration.
+
+    Returns
+    -------
+    rs : float
+        Sound horizon in proper Mpc.
+    zstar : float
+        Redshift of the last scattering surface.
+    """
 
     from .jax import romberg
 
@@ -240,6 +277,7 @@ class BaseCosmoParams(BaseClass):
     _conflict_parameters = []
 
     def _set_jax(self):
+        """setup jax usage"""
         if getattr(self.__class__, '_use_jax', None) and getattr(self.__class__, '_np', None):
             self._use_jax = self.__class__._use_jax
             self._np = self.__class__._np
@@ -270,6 +308,11 @@ class BaseCosmoParams(BaseClass):
         -------
         params : dict
             Dictionary of default parameters.
+
+        Raises
+        ------
+        CosmologyInputError
+            If ``of`` is not one of ['cosmology', 'calculation'].
         """
         if of is None:
             toret = cls.get_default_params(of='cosmology', include_conflicts=include_conflicts)
@@ -277,7 +320,13 @@ class BaseCosmoParams(BaseClass):
             return toret
 
         def _include_conflicts(params):
-            """Add in conflicting parameters to input ``params`` dictionay (in-place operation)."""
+            """
+            Add in conflicting parameters to input ``params`` dictionay (in-place operation).
+
+            Parameters
+            ----------
+            params : original dictionary with parameters
+            """
             for name in list(params.keys()):
                 for conf in find_conflicts(name, conflicts=cls._conflict_parameters):
                     params[conf] = params[name]
@@ -306,6 +355,11 @@ class BaseCosmoParams(BaseClass):
         -------
         params : dict
             Dictionary of parameters.
+
+        Raises
+        ------
+        CosmologyInputError
+            If ``of`` is not one of ['cosmology', 'calculation', 'base', 'derived', 'extra', 'all'].
         """
         if of == 'derived':
             return dict(self._derived)
@@ -326,15 +380,44 @@ class BaseCosmoParams(BaseClass):
 
     @classmethod
     def _compile_params(cls, params):
-        """Return input parameters in a standard basis."""
+        """
+        Return input parameters in a standard basis.
+        Used in BaseEngine to compile input parameters.
+        
+        Parameters
+        ----------
+        params : dict
+            Input parameters with names as key, and values as parameter values.
+
+        Returns
+        -------
+        params : dict
+            Compiled parameters.
+        """
         return dict(params)
 
     def __getitem__(self, name):
-        """Return an input (or easily derived) parameter."""
+        """Return an input (or easily derived) parameter.
+
+        Parameters
+        ----------
+        name : string
+            Name of the parameter.
+
+        Returns
+        -------
+        params : float, array
+            Value of the parameter.
+        """
         return self.get(name)
 
     def get(self, *args, **kwargs):
-        """Return an input (or easily derived) parameter."""
+        """
+        Return an input (or easily derived) parameter.
+
+        Parameters
+        ----------
+        """
         if len(args) == 1:
             name = args[0]
             has_default = 'default' in kwargs
