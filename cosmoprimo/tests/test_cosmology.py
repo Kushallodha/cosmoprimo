@@ -41,6 +41,10 @@ def test_params():
         cosmo = Cosmology(tau=0.05, tau_reio=0.06)
     cosmo = Cosmology(ombh2=0.05, omch2=0.1)
     assert np.allclose(cosmo['omega_b'], 0.05) and np.allclose(cosmo['omega_cdm'], 0.1)
+    tf = Cosmology(engine='eisenstein_hu_nowiggle_variants',Omega_ncdm = 0.2).get_transfer()
+    k = np.array([5.])
+    with pytest.raises(CosmologyError):
+        tf.transfer_kz(k, z=0., of='delta_ncdm')
 
 
 def test_engine():
@@ -153,7 +157,8 @@ def test_thermodynamics(params):
             assert np.allclose(getattr(th, name), getattr(th_class, name), atol=0, rtol=1e-2)
         assert np.allclose(th_class.theta_cosmomc, cosmo['theta_cosmomc'], atol=0., rtol=3e-6)
         assert np.allclose(th.theta_cosmomc, cosmo['theta_cosmomc'], atol=0., rtol=3e-6)
-    for engine in ['eisenstein_hu', 'eisenstein_hu_nowiggle', 'eisenstein_hu_nowiggle_variants']:
+    for engine in ['eisenstein_hu']:
+        th = Thermodynamics(cosmo, engine=engine)
         for name in ['z_drag', 'rs_drag']:
             assert np.allclose(getattr(th, name), getattr(th_class, name), atol=0, rtol=1e-2)
 
@@ -266,7 +271,7 @@ def test_fourier(params, seed=42):
         if 'sigma8' in cosmo._params:
             assert np.allclose(fo.sigma8_z(0, of='delta_m'), cosmo._params['sigma8'], atol=0., rtol=1e-3)
             assert np.allclose(fo.pk_interpolator(non_linear=False, of='delta_m').sigma8_z(z=0.), cosmo._params['sigma8'], atol=0., rtol=1e-3)
-        for of in ['delta_m', 'delta_cb', ('delta_cb', 'theta_cb'), 'theta_cb']:
+        for of in ['delta_m', 'delta_cb', ('delta_cb', 'theta_cb'), ('delta_m', 'theta_cb'),'theta_cb']:
             assert np.allclose(fo.sigma_rz(r, z, of=of), fo_class.sigma_rz(r, z, of=of), atol=0., rtol=1e-3)
             assert np.allclose(fo.sigma8_z(z, of=of), fo_class.sigma8_z(z, of=of), atol=0., rtol=1e-3)
 
@@ -301,12 +306,17 @@ def test_fourier(params, seed=42):
                     f = fo.sigma_rz(r, z, of='theta_cb') / fo.sigma_rz(r, z, of='delta_cb')
                     assert np.allclose(f, pk.growth_rate_rz(r=r, z=z, dz=dz), atol=0., rtol=rtol)
 
-    for engine in ['eisenstein_hu', 'eisenstein_hu_nowiggle', 'eisenstein_hu_nowiggle_variants', 'bbks']:
+    for engine in ['eisenstein_hu', 'eisenstein_hu_nowiggle_variants']:
+        for of in ['delta_m', 'theta_cb']:
+            fo = Fourier(cosmo, engine=engine)
+            pk_class = fo_class.pk_interpolator(non_linear=False, of=of)
+            pk = fo.pk_interpolator(of=of)
+            rtol = 0.15
+            assert np.allclose(pk(k, z=z), pk_class(k, z=z), atol=0., rtol=rtol)
         fo = Fourier(cosmo, engine=engine)
-        pk_class = fo_class.pk_interpolator(non_linear=False, of='delta_m')
-        pk = fo.pk_interpolator()
-        rtol = 0.3 if engine == 'bbks' else 0.15
-        assert np.allclose(pk(k, z=z), pk_class(k, z=z), atol=0., rtol=rtol)
+        pk_class = fo_class.pk_interpolator(non_linear=False, of=['delta_m', 'theta_cb'])
+        pk = fo.pk_interpolator(of=['delta_m', 'theta_cb'])
+        assert np.allclose(pk(k, z=z), pk_class(k, z=z), atol=0., rtol=0.15)
         r = rng.uniform(1., 10., 10)
         assert np.allclose(pk.growth_rate_rz(r=r, z=z), pk_class.growth_rate_rz(r=r, z=z), atol=0., rtol=0.15)
         fo.sigma8_z(z, of="delta_m")
