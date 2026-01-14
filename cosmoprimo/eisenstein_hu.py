@@ -156,7 +156,7 @@ class Background(DefaultBackground):
 
         Returns
         -------
-        array_like : Growth factor at redshift 'z'
+        array_like : Growth factor at redshift `z`
 
         References
         ----------
@@ -187,7 +187,7 @@ class Background(DefaultBackground):
 
         Returns
         -------
-        array_like : Growth rate at redshift 'z'
+        array_like : Growth rate at redshift ``z``
 
         References
         ----------
@@ -284,7 +284,7 @@ class Primordial(BaseSection):
             Wavenumbers, in :math:`h/\mathrm{Mpc}`.
 
         mode : string, default='scalar'
-            'scalar' mode.
+            `scalar` mode.
 
         Returns
         -------
@@ -303,11 +303,11 @@ class Primordial(BaseSection):
         Parameters
         ----------
         mode : string, default='scalar'
-            'scalar', 'vector' or 'tensor' mode.
+            `scalar', `vector' or `tensor' mode.
 
         Returns
         -------
-        PowerSpectrumInterpolator1D : 1D Power spectrum interpolator of 'scalar' perturbations.
+        PowerSpectrumInterpolator1D : 1D Power spectrum interpolator of `scalar` perturbations.
         """
         return PowerSpectrumInterpolator1D.from_callable(
             pk_callable=lambda k: self.pk_k(k, mode=mode))
@@ -395,9 +395,9 @@ class Fourier(BaseSection):
         Parameters
         ----------
         of : string, tuple
-            Perturbed quantities: 'delta_m', 'theta_m'.
+            Perturbed quantities: `delta_m', `theta_m`.
             No distinction is made between baryons and CDM.
-            Requesting velocity divergence 'theta_xx' will rescale the power spectrum
+            Requesting velocity divergence ``theta_xx`` will rescale the power spectrum
             by the growth rate as a function of ``z``.
 
         kwargs : dict
@@ -405,7 +405,7 @@ class Fourier(BaseSection):
 
         Returns
         -------
-        PowerspectrumInterpolator2D : 2D Power spectrum interpolator of `of` perturbations.
+        PowerspectrumInterpolator2D : 2D Power spectrum interpolator of ``of`` perturbations.
         """
         if isinstance(of, str):
             of = (of,)
@@ -436,7 +436,7 @@ class Fourier(BaseSection):
 
     def sigma_rz(self, r, z, of='delta_m', **kwargs):
         r"""
-        Return the r.m.s. of perturbations in a sphere of :math:`r`, i.e.:
+        Return the r.m.s. of ``of`` perturbations in a sphere of :math:`r`, i.e.:
 
         .. math::
 
@@ -451,15 +451,15 @@ class Fourier(BaseSection):
         z : array_like
             Redshifts.
         of : string, tuple
-            Perturbed quantities: 'delta_m', 'theta_m'.
+            Perturbed quantities: `delta_m`, `theta_m`.
             No distinction is made between baryons and CDM.
         kwargs : dict
             Arguments for :class:`PowerSpectrumInterpolator2D`.
 
         Returns
-        -------
-        array_like : r.m.s. of `of` perturbations
-        in sphere of `r` at redshift `z`.
+        -------`
+        array_like : r.m.s. of ```of`` perturbations
+        in sphere of ``r`` at redshift ``z``.
 
         Notes
         -----
@@ -476,7 +476,7 @@ class Fourier(BaseSection):
         return self.pk_interpolator(of=of, **kwargs).sigma_rz(r, z)
 
     def sigma8_z(self, z, of='delta_m'):
-        r"""Return the r.m.s. of `of` perturbations
+        r"""Return the r.m.s. of ``of`` perturbations
         in sphere of :math:`8 \mathrm{Mpc}/h`.
         No distinction is made between baryons and CDM.
 
@@ -485,7 +485,7 @@ class Fourier(BaseSection):
         z : array_like
             Redshifts.
         of : string, tuple
-            Perturbed quantities: 'delta_m', 'theta_m'.
+            Perturbed quantities: `delta_m`, `theta_m`.
             No distinction is made between baryons and CDM.
 
         Returns

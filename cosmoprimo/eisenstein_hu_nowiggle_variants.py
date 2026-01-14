@@ -197,9 +197,9 @@ class Fourier(EHFourier):
         Parameters
         ----------
         of : string, tuple
-            Perturbed quantities: 'delta_m', 'theta_m', 'delta_cb', 'theta_cb'.
-            No difference made between 'theta_cb' and 'theta_m'.
-            Requesting velocity divergence 'theta_xx' will rescale the power spectrum
+            Perturbed quantities: `delta_m`, `theta_m`, `delta_cb`, `theta_cb`.
+            No difference made between `theta_cb` and `theta_m`.
+            Requesting velocity divergence ``theta_xx`` will rescale the power spectrum
             by the growth rate as a function of ``z``.
 
         kwargs : dict
@@ -208,7 +208,7 @@ class Fourier(EHFourier):
         Returns
         -------
         pk_interpolator : :class:`PowerSpectrumInterpolator2D`
-            2D Power spectrum interpolator of `of` perturbations.
+            2D Power spectrum interpolator of ``of`` perturbations.
         """
         if not isinstance(of, (tuple, list)):
             of = (of, of)
