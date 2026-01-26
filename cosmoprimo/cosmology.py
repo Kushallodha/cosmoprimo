@@ -460,7 +460,7 @@ class BaseCosmoParams(BaseClass):
                 'K' : curvature parameter in (h/Mpc)^2,
                 'N_ncdm' : number of non-cold dark matter species,
                 'N_eff' : effective number of relativistic species,
-                'theta_cosmomc' : sound horizon at decoupling over angular diameter distance
+                'theta_cosmomc' : angular size of the sound horizon
                     at decoupling (CosmoMC definition),
                 'theta_MC_100' : 100 * 'theta_cosmomc'.
 
@@ -693,6 +693,7 @@ class BaseEngine(BaseCosmoParams, metaclass=RegisteredEngine):
         -------
         A_s : float
             First guess for power spectrum amplitude :math:`A_{s}`.
+            If directly given, return that value.
         """
         # https://github.com/lesgourg/class_public/blob/4724295b527448b00faa28bce973e306e0e82ef5/source/input.c#L1161
         if 'A_s' in self._params:
@@ -700,15 +701,37 @@ class BaseEngine(BaseCosmoParams, metaclass=RegisteredEngine):
         return 2.43e-9 * (self['sigma8'] / 0.87659)**2
 
     def _get_sigma8_fid(self):
-        r"""First guess for power spectrum amplitude :math:`\sigma_{8}`
-        (given input :math:`A_s`)."""
+        r"""
+        First guess for power spectrum amplitude on a scale of 8h^-1Mpc :math:`\sigma_{8}`
+        (given input :math:`A_s`).
+
+        Returns
+        -------
+        sigma8 : float
+            First guess for power spectrum amplitude on a scale of 8h^-1Mpc :math:`\sigma_{8}`.
+            If directly given, return that value.
+        """
         # https://github.com/lesgourg/class_public/blob/4724295b527448b00faa28bce973e306e0e82ef5/source/input.c#L1161
         if 'sigma8' in self._params:
             return self._params['sigma8']
         return (self['A_s'] / 2.43e-9)**0.5 * 0.87659
 
     def _rescale_sigma8(self):
-        """Rescale perturbative quantities to match input sigma8."""
+        r"""
+        Rescale perturbative quantities to match input sigma8.
+
+        Note
+        ----
+        The rescaling factor is defined as
+        :math:`\sigma_{8, \mathrm{input}} /\sigma_{8, \mathrm{computed}}`.
+        \sigma_{8, \mathrm{computed}}` is computed with :func:`get_fourier().sigma8_m`
+        from the given power spectrum.
+
+        Returns
+        -------
+        _rsigma8 : float
+            Rescaling factor
+        """
         if getattr(self, '_rsigma8', None) is not None:
             return self._rsigma8
         self._rsigma8 = 1.
@@ -779,6 +802,11 @@ def get_engine(engine):
     Returns
     -------
     engine : BaseEngine
+
+    Raises
+    ------
+    CosmologyInputError
+        If engine is unknown.
     """
     if isinstance(engine, str):
         engine = engine.lower()
@@ -846,6 +874,11 @@ def _get_cosmology_engine(cosmology, engine=None, set_engine=True, **extra_param
     Returns
     -------
     engine : BaseEngine
+
+    Raises
+    ------
+    CosmologyInputError
+        If no engine is provided to ``cosmology``.
     """
     if engine is None:
         if cosmology._engine is None:
@@ -1102,14 +1135,43 @@ class Cosmology(BaseCosmoParams):
         args : dict
             Input parameter dictionary, without parameter conflicts.
 
+        engine : string, default=None
+            Engine name, one of ['class', 'camb', 'eisenstein_hu', 'eisenstein_hu_nowiggle',
+            'bbks'].
+            If ``None``, set as :class:`BaseEngine`.
+
         Returns
         -------
         params : dict
             Normalised parameter dictionary.
 
+        Raises
+        ------
+        CosmologyInputError
+            - if ``neutrino_hierarchy`` is not one of [None, 'normal', 'inverted', 'degenerate']
+            - if ``neutrino_hierarchy`` is not ``None`` and ``m_ncdm`` is provided as a list
+            - if ``neutrino_hierarchy`` is not ``None`` and ``m_ncdm`` is negative
+            - if ``neutrino_hierarchy`` is 'normal' or 'inverted' and total mass is below minimum
+            - if the sum of ``w0_fld`` and ``wa_fld`` is larger than 1/3
+            - if one of ['Omega_cdm', 'Omega_b', 'T_cmb', 'h', 'A_s', 'sigma8',
+            'm_ncdm', 'T_ncdm_over_cmb'] is negative
+            - if ``YHe`` is not float and not 'BBN'
+            - if ``n_t`` or ``alpha_t`` is not float and not 'SCC'
+        TypeError
+            - if ``Omega_ncdm`` and ``T_ncdm_over_cmb`` are of different lengths
+            - if ``Omega_ncdm`` or ``T_ncdm_over_cmb`` are not lists
+        ValueError
+            - if ``N_ncdm`` is not equal to length of ``m_ncdm``
         References
         ----------
         https://github.com/bccp/nbodykit/blob/master/nbodykit/cosmology/cosmology.py
+        for neutrino mass hierarchies:
+            https://github.com/LSSTDESC/CCL/blob/66397c7b53e785ae6ee38a688a741bb88d50706b/pyccl/core.py#L461
+            https://arxiv.org/pdf/1907.12598.pdf
+        for calling 'z_pk':
+        https://github.com/LSSTDESC/CCL/blob/d2a5630a229378f64468d050de948b91f4480d41/src/ccl_core.c
+        for defining `n_t` and `alpha_t` as 'SCC':
+            https://github.com/cmbant/CAMB/blob/master/camb/initialpower.py
         """
         params = {}
         params.update(args)
@@ -1301,9 +1363,10 @@ class Cosmology(BaseCosmoParams):
                     deltam31sq = 2.525e-3
 
                     def error(value):
-                        raise CosmologyInputError('If neutrino_hierarchy is normal, we are using \
-                                                  the normal hierarchy and so m_ncdm must be greater \
-                                                  than (~)0.0592, found {:.2f}'.format(value))
+                        raise CosmologyInputError("If neutrino_hierarchy is normal, we are using"+\
+                                                " the normal hierarchy and so m_ncdm must be" +\
+                                                "greater than (~)0.0592, "+\
+                                                "\nfound {:.2f}".format(value))
 
                     sum_ncdm = exception_or_nan(sum_ncdm, sum_ncdm**2 <\
                                                 deltam21sq + deltam31sq, error)
@@ -1318,9 +1381,9 @@ class Cosmology(BaseCosmoParams):
                     deltam31sq = deltam32sq + deltam21sq
 
                     def error(value):
-                        raise CosmologyInputError('If neutrino_hierarchy is inverted, we are using \
-                                                  the inverted hierarchy and so m_ncdm must be \
-                                                  greater than (~)0.0978, found {:.2f}'\
+                        raise CosmologyInputError('If neutrino_hierarchy is inverted, we are' +\
+                                                  'using the inverted hierarchy and so m_ncdm' +\
+                                                  'must be greater than (~)0.0978, \nfound {:.2f}'\
                                                   .format(value))
 
                     sum_ncdm = exception_or_nan(sum_ncdm, sum_ncdm**2 <\
@@ -1384,9 +1447,9 @@ class Cosmology(BaseCosmoParams):
         params['T_ncdm_over_cmb'] = T_ncdm_over_cmb
         if params.get('N_ncdm', None) is not None:
             if params['N_ncdm'] != len(params['m_ncdm']):
-                raise ValueError('provided N_ncdm = {:d} does not match len(m_ncdm) = {:d}. Do not \
-                                 provide N_ncdm, but rather a list of m_ncdm of the correct length, \
-                                 or neutrino_hierarchy.'.format(params['N_ncdm'],\
+                raise ValueError('provided N_ncdm = {:d} does not match len(m_ncdm) = {:d}. Do '+\
+                                 'not provide N_ncdm, but rather a list of m_ncdm of the correct'+\
+                                 ' length, or neutrino_hierarchy.'.format(params['N_ncdm'],\
                                                                 len(params['m_ncdm'])))
             del params['N_ncdm']
 
