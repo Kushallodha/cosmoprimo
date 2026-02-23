@@ -6,9 +6,8 @@ import sys
 import numpy as np
 
 from .utils import BaseClass
-from .jax import numpy_jax, register_pytree_node_class
+from .jax import numpy_jax, register_pytree_node_class, Interpolator1D, odeint
 from . import utils, constants
-
 
 _Sections = ['Background', 'Thermodynamics', 'Primordial',
              'Perturbations', 'Transfer', 'Harmonic', 'Fourier']
@@ -132,9 +131,10 @@ def _compute_ncdm_momenta(T_eff, m, z, method='laguerre', epsabs=1e-7, epsrel=1e
         #else:
         #    jnp = np
         from scipy import integrate
-        quad = lambda fun, args: integrate.quad(
-            fun, *limits, args=args, epsabs=epsabs, epsrel=epsrel
-            )[0]
+        def quad(fun, args):
+                return integrate.quad(
+                    fun, *limits, args=args, epsabs=epsabs, epsrel=epsrel
+                    )[0]
         toret = jnp.array([quad(phase_space_integrand, (m_over_T2[iz], m2_over_T2[iz]))
                            for iz in range(len(z))])
 
@@ -439,11 +439,11 @@ class BaseCosmoParams(BaseClass):
         ----------
         name : string
             Name of the parameter. One of following parameters:
-                'omegaX' : physical density of component X (:math:`\Omega_X h^2`), 
+                'omegaX' : physical density of component X (:math:`\Omega_X h^2`),
                 'H0' : Hubble parameter at z=0 in km/s/Mpc,
                 'logA', 'ln10^{10}A_s', 'ln10^10A_s', 'ln_A_s_1e10' : :math:`\ln(10^{10} A_{s})`,
                 'Omega_g' : photon density,
-                'T_ur' : temperature of ultra-relativistic species, 
+                'T_ur' : temperature of ultra-relativistic species,
                     :math:`T_{\mathrm{cmb}} (4/11)^{1/3}`,
                 'T_ncdm' : temperature of non-cold dark matter species,
                 'Omega_ur' : ultra-relativistic species density,
@@ -571,7 +571,8 @@ class BaseCosmoParams(BaseClass):
 
     @property
     def _has_fld(self):
-        #return (self._params['w0_fld'], self._params['wa_fld'], self._params['cs2_fld']) != (-1, 0., 1.)
+        #return (self._params['w0_fld'], self._params['wa_fld'],
+        # self._params['cs2_fld']) != (-1, 0., 1.)
         return (self._params['w0_fld'] != -1) | (self._params['wa_fld'] != 0)\
             | (self._params['cs2_fld'] != 1.)  # for jax
 
@@ -633,7 +634,7 @@ class BaseCosmoParams(BaseClass):
         is_equal : bool
             Whether ``other`` is equal to ``self``.
         """
-        return type(other) == type(self) and _deepeq(other._params, self._params) and \
+        return type(other) is type(self) and _deepeq(other._params, self._params) and \
         _deepeq(other._extra_params, self._extra_params)
 
 
@@ -929,7 +930,7 @@ for section in _Sections:
     globals()[section] = _make_section_getter(section)
 
 
-from .jax import register_pytree_node_class
+
 
 
 def _filter_numerical_params(params):
@@ -952,9 +953,10 @@ class Cosmology(BaseCosmoParams):
     """Cosmology, defined as a set of parameters (and possibly a current engine attached to it)."""
 
     _default_cosmological_parameters = dict(h=0.7, Omega_cdm=0.25, Omega_b=0.05, Omega_k=0.,
-                                            sigma8=0.8, k_pivot=0.05, n_s=0.96, alpha_s=0., beta_s=0.,
-                                            r=0., n_t='scc', alpha_t='scc', T_cmb=constants.TCMB,
-                                            m_ncdm=None, neutrino_hierarchy=None,
+                                            sigma8=0.8, k_pivot=0.05, n_s=0.96, alpha_s=0.,
+                                            beta_s=0., r=0., n_t='scc', alpha_t='scc',
+                                            T_cmb=constants.TCMB, m_ncdm=None,
+                                            neutrino_hierarchy=None,
                                             T_ncdm_over_cmb=constants.TNCDM_OVER_CMB,
                                             N_eff=constants.NEFF, tau_reio=0.06,
                                             reionization_width=0.5, A_L=1.0, w0_fld=-1., wa_fld=0.,
@@ -972,11 +974,11 @@ class Cosmology(BaseCosmoParams):
                                     ('A_s', 'logA', 'sigma8'),
                                     ('tau_reio', 'z_reio')]
     _alias_parameters = {'omega_b': ('ombh2',), 'omega_cdm': ('omch2',),
-                         'Omega_k': ('omk',), 'm_ncdm': ('mnu',), 'N_eff': ('nnu',),
+                         'Omega_k': ('omk','Omega0_k'), 'm_ncdm': ('mnu',), 'N_eff': ('nnu',),
                         'n_s': ('ns',), 'alpha_s': ('nrun',),
                         'beta_s': ('nrunrun',), 'tau_reio': ('tau',),
                         'Omega_m': ('Omega0_m',), 'Omega_cdm': ('Omega0_cdm', 'Omega_c'),
-                        'Omega_b': ('Omega0_b',), 'Omega_k': ('Omega0_k',),
+                        'Omega_b': ('Omega0_b',),
                         'Omega_ur': ('Omega0_ur',), 'Omega_ncdm': ('Omega0_ncdm',),
                         'Omega_fld': ('Omega0_fld',), 'T_cmb': ('T0_cmb',),
                         'Omega_g': ('Omega0_g',),
@@ -1148,20 +1150,23 @@ class Cosmology(BaseCosmoParams):
         Raises
         ------
         CosmologyInputError
-            - if ``neutrino_hierarchy`` is not one of [None, 'normal', 'inverted', 'degenerate']
-            - if ``neutrino_hierarchy`` is not ``None`` and ``m_ncdm`` is provided as a list
-            - if ``neutrino_hierarchy`` is not ``None`` and ``m_ncdm`` is negative
-            - if ``neutrino_hierarchy`` is 'normal' or 'inverted' and total mass is below minimum
-            - if the sum of ``w0_fld`` and ``wa_fld`` is larger than 1/3
-            - if one of ['Omega_cdm', 'Omega_b', 'T_cmb', 'h', 'A_s', 'sigma8',
-            'm_ncdm', 'T_ncdm_over_cmb'] is negative
-            - if ``YHe`` is not float and not 'BBN'
-            - if ``n_t`` or ``alpha_t`` is not float and not 'SCC'
+            If ``neutrino_hierarchy`` is not one of [None, 'normal', 'inverted', 'degenerate'].
+            If ``neutrino_hierarchy`` is not ``None`` and ``m_ncdm`` is provided as a list.
+            If ``neutrino_hierarchy`` is not ``None`` and ``m_ncdm`` is negative.
+            If ``neutrino_hierarchy`` is 'normal' or 'inverted' and total mass is below minimum.
+            If the sum of ``w0_fld`` and ``wa_fld`` is larger than 1/3.
+            If one of ['Omega_cdm', 'Omega_b', 'T_cmb', 'h', 'A_s', 'sigma8',
+            'm_ncdm', 'T_ncdm_over_cmb'] is negative.
+            If ``YHe`` is not float and not 'BBN'.
+            If ``n_t`` or ``alpha_t`` is not float and not 'SCC'.
+
         TypeError
-            - if ``Omega_ncdm`` and ``T_ncdm_over_cmb`` are of different lengths
-            - if ``Omega_ncdm`` or ``T_ncdm_over_cmb`` are not lists
+            If ``Omega_ncdm`` and ``T_ncdm_over_cmb`` are of different lengths.
+            If ``Omega_ncdm`` or ``T_ncdm_over_cmb`` are not list.
+
         ValueError
-            - if ``N_ncdm`` is not equal to length of ``m_ncdm``
+            If ``N_ncdm`` is not equal to length of ``m_ncdm``.
+
         References
         ----------
         https://github.com/bccp/nbodykit/blob/master/nbodykit/cosmology/cosmology.py
@@ -1202,7 +1207,8 @@ class Cosmology(BaseCosmoParams):
 
         def set_alias(params_name, aliases):
             for alias in aliases:
-                if alias not in params: continue
+                if alias not in params:
+                    continue
                 # pop because we copied everything
                 assert params_name not in params, 'found both {} and {},\
                 must be added to _conflict_parameters'.format(alias, params_name)
@@ -1216,14 +1222,16 @@ class Cosmology(BaseCosmoParams):
         for name, value in list(params.items()):
             if name.startswith('omega'):
                 omega = params.pop(name)
-                Omega = _make_float(omega) / h**2  # array to cope with tuple, lists for e.g. omega_ncdm
+                Omega = _make_float(omega) / h**2  # array to cope with tuple,
+                                                   # lists for e.g. omega_ncdm
                 params_name = name.replace('omega', 'Omega')
                 assert params_name not in params, 'found both {} and {},\
                     must be added to _conflict_parameters'.format(name, params_name)
                 params[params_name] = Omega
 
         for name, aliases in cls._alias_parameters.items():
-            if name in omegas: continue
+            if name in omegas:
+                continue
             set_alias(name, aliases)
 
         if 'logA' in params:
@@ -1292,7 +1300,8 @@ class Cosmology(BaseCosmoParams):
                                        solve_newton(Omega * h**2,Omega * h**2 * 93.14,\
                                                     params['T_cmb'] * T)))
 
-                if single_ncdm: m_ncdm = m_ncdm[0]
+                if single_ncdm:
+                    m_ncdm = m_ncdm[0]
 
             else:
                 m_ncdm = []
@@ -1354,7 +1363,8 @@ class Cosmology(BaseCosmoParams):
                         return jnp.abs(sum_ncdm - sum_check) > 1e-15
 
                     # m_ncdm is a starting guess
-                    m_ncdm, sum_check = for_cond_loop(0, 1000, cond_fun, body_fun, (m_ncdm, sum(m_ncdm)))
+                    m_ncdm, sum_check = for_cond_loop(0, 1000, cond_fun, body_fun,
+                                                      (m_ncdm, sum(m_ncdm)))
 
                     return m_ncdm
 
@@ -1424,11 +1434,13 @@ class Cosmology(BaseCosmoParams):
         N_eff = params.pop('N_eff', constants.NEFF)
         # We remove massive neutrinos
         if N_ur is None:
-            N_ur = N_eff - sum(T_ncdm_over_cmb**4 * (4. / 11.)**(-4. / 3.) for T_ncdm_over_cmb in T_ncdm_over_cmb)
+            N_ur = N_eff - sum(T_ncdm_over_cmb**4 * (4. / 11.)**(-4. / 3.)
+                               for T_ncdm_over_cmb in T_ncdm_over_cmb)
             # Which is just the high-redshift limit of what is below; leaving it there for clarity
             # N_eff = (rho_r / rho_g - 1) / (7. / 8. * (4. / 11.)**(4. / 3.))  # as defined in
             # class_public https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/source/background.c#L2051
-            # with rho_r = rho_g + rho_ur + 3. * pncdm and rho_ur = 7. / 8. * (4. / 11.)**(4. / 3.) * N_ur * rho_g
+            # with rho_r = rho_g + rho_ur + 3. * pncdm and rho_ur = 7. / 8. *\
+            #               (4. / 11.)**(4. / 3.) * N_ur * rho_g
             # so N_ur = N_eff - 3 * pncdm / rho_g / (7. / 8. * (4. / 11.)**(4. / 3.))
             # z = 1e10
             # pncdm = sum(_compute_ncdm_momenta(params['T_cmb'] * T, m, z=z, out='p')\
@@ -1441,16 +1453,17 @@ class Cosmology(BaseCosmoParams):
         #    raise ValueError('N_ur and m_ncdm must result in a number of relativistic\
         # neutrino species greater than or equal to zero.')
         params['N_ur'] = _make_float(N_ur)
-        #params['N_eff'] = N_ur + sum(T_ncdm_over_cmb**4 * (4. / 11.)**(-4. / 3.) for T_ncdm_over_cmb in T_ncdm_over_cmb)
+        # params['N_eff'] = N_ur + sum(T_ncdm_over_cmb**4 * (4. / 11.)**(-4. / 3.)
+        #                               for T_ncdm_over_cmb in T_ncdm_over_cmb)
         # number of massive neutrino species
         params['m_ncdm'] = m_ncdm
         params['T_ncdm_over_cmb'] = T_ncdm_over_cmb
         if params.get('N_ncdm', None) is not None:
             if params['N_ncdm'] != len(params['m_ncdm']):
-                raise ValueError('provided N_ncdm = {:d} does not match len(m_ncdm) = {:d}. Do '+\
-                                 'not provide N_ncdm, but rather a list of m_ncdm of the correct'+\
-                                 ' length, or neutrino_hierarchy.'.format(params['N_ncdm'],\
-                                                                len(params['m_ncdm'])))
+                raise ValueError(('provided N_ncdm = {:d} does not match len(m_ncdm) = {:d}. Do '
+                                 'not provide N_ncdm, but rather a list of m_ncdm of the correct'
+                                 ' length, or neutrino_hierarchy.').format(params['N_ncdm'],
+                                                                           len(params['m_ncdm'])))
             del params['N_ncdm']
 
         if params.get('z_pk', None) is None:
@@ -1464,7 +1477,8 @@ class Cosmology(BaseCosmoParams):
                 params[name] = [params[name]]
         params['z_pk'] = np.sort(params['z_pk'])  # jax not needed
         if 0. not in params['z_pk']:
-            params['z_pk'] = np.insert(params['z_pk'], 0, 0.)  # in order to normalise CAMB power spectrum with sigma8
+            params['z_pk'] = np.insert(params['z_pk'], 0, 0.)  # in order to normalise CAMB
+                                                               # power spectrum with sigma8
 
         if 'Omega_m' in params:
             nonrelativistic_ncdm = (sum(BaseEngine._get_ncdm(params, z=0, out='rho')) - 3 *\
@@ -1556,7 +1570,7 @@ class Cosmology(BaseCosmoParams):
         base : string, default='input'
             If 'internal' or ``None``, update parameters in the internal
             :math:`h, \Omega, m_{cdm}` basis.
-            If, e.g. input parameters are :math:`h, \omega_{b}, \omega_{cdm}`, 
+            If, e.g. input parameters are :math:`h, \omega_{b}, \omega_{cdm}`,
             ``clone(base='internal', h=0.7)`` returns the same cosmology,
             but with :math:`h = 0.7`; since :math:`\Omega_{b}, \Omega_{cdm}` are kept fixed,
             :math:`\omega_{b}, \omega_{cdm}` are modified.
@@ -1580,6 +1594,11 @@ class Cosmology(BaseCosmoParams):
         -------
         new : Cosmology
             Copy of current instance, with updated engine and parameters.
+
+        Raises
+        ------
+        CosmologyInputError
+            If ``base`` is not one of ['input', 'internal', None].
         """
         new = self.copy()
         check_params(params, conflicts=new.__class__._conflict_parameters)
@@ -1607,7 +1626,7 @@ class Cosmology(BaseCosmoParams):
         return new
 
     def solve(self, param, func, target=0., limits=None, init=None, xtol=1e-6, maxiter=25):
-        """
+        r"""
         Return cosmology ``cosmo`` that verifies ``func(cosmo) == target``,
         by varying parameter ``param``.
         TODO: implement multi-dimensional matching.
@@ -1645,6 +1664,18 @@ class Cosmology(BaseCosmoParams):
         Returns
         -------
         new : Cosmology
+            New cosmology instance with updated ``param`` value.
+
+        Raises
+        ------
+        CosmologyInputError
+            If ``func`` is not provided.
+            If ``limits`` cannot be found within ``maxiter``.
+            If solving for ``param`` fails within provided ``limits``.
+
+        ValueError
+            If ``limits`` is not provided and ``init`` is not a tuple (x0, dx).
+            If ``func(cosmo)`` raises ``CosmologyError`` for some ``param`` value.
         """
         default_delta = {'h': [0.6, 0.8], 'H0': [60., 80.]}
         default_tol = {'h': 1e-6, 'H0': 1e-4}
@@ -1658,13 +1689,15 @@ class Cosmology(BaseCosmoParams):
             return toret
 
         if func == 'theta_MC_100':
-            func = lambda cosmo: cosmo['theta_MC_100']
+            def func(cosmo):
+                return cosmo['theta_MC_100']
             if init is None and param in ['h', 'H0']:
                 # From class_public
                 init = 3.54 * target**2 - 5.455 * target + 2.548
                 f1 = f(init)
                 init = (init, f1, f1 * (2 * 3.54 * target - 5.455))
-                if param == 'H0': init = (100 * init[0], init[1], 100 * init[2])
+                if param == 'H0':
+                    init = (100 * init[0], init[1], 100 * init[2])
         if func is None:
             raise CosmologyInputError('Provide func')
         if init is None:
@@ -1706,7 +1739,14 @@ class Cosmology(BaseCosmoParams):
         return self.clone(base='input', **{param: value})
 
     def __setstate__(self, state):
-        """Set the class state dictionary."""
+        """
+        Set the class state dictionary.
+
+        Parameters
+        ----------
+        state : dict
+             State dictionary.
+        """
         for name in ['params', 'input_params', 'derived']:
             setattr(self, '_{}'.format(name), state.get(name, {}))
         # Backward-compatibility
@@ -1719,7 +1759,14 @@ class Cosmology(BaseCosmoParams):
             self.set_engine(state['engine']['name'], **state['engine']['extra_params'])
 
     def __getstate__(self):
-        """Return this class state dictionary."""
+        """
+        Return this class state dictionary.
+
+        Returns
+        -------
+        state : dict
+            State dictionary.
+        """
         state = {'engine': None}
         for name in ['params', 'input_params', 'derived']:
             state[name] = getattr(self, '_{}'.format(name))
@@ -1730,20 +1777,51 @@ class Cosmology(BaseCosmoParams):
 
     @classmethod
     def from_state(cls, state):
-        """Instantiate and initalise class with state dictionary."""
+        """
+        Instantiate and initalise class with state dictionary.
+
+        Parameters
+        ----------
+        state : dict
+            State dictionary.
+
+        Returns
+        -------
+        new : Cosmology
+            New Cosmology instance.
+        """
         new = cls.__new__(cls)
         new.__setstate__(state)
         return new
 
     @classmethod
     def load(cls, filename):
-        """Load class from disk."""
+        """
+        Load class from disk.
+
+        Parameters
+        ----------
+        filename : string
+            Filename with parameters.
+
+        Returns
+        -------
+        new : Cosmology
+            Cosmology instance loaded from disk.
+        """
         state = np.load(filename, allow_pickle=True)[()]
         new = cls.from_state(state)
         return new
 
     def save(self, filename):
-        """Save class to disk."""
+        """
+        Save class to disk.
+
+        Parameters
+        ----------
+        filename : string
+            Filename to save parameters to.
+        """
         dirname = os.path.dirname(filename)
         utils.mkdir(dirname)
         np.save(filename, self.__getstate__())
@@ -1752,6 +1830,11 @@ class Cosmology(BaseCosmoParams):
         """
         List of non-duplicate members from all sections.
         Adapted from https://github.com/bccp/nbodykit/blob/master/nbodykit/cosmology/cosmology.py.
+
+        Returns
+        -------
+        toret : list
+            List of member names.
         """
         toret = super(Cosmology, self).__dir__()
         if self._engine is None:
@@ -1771,6 +1854,23 @@ class Cosmology(BaseCosmoParams):
         For example, calling ``cosmo.comoving_radial_distance`` will actually return
         ``cosmo.get_background().comoving_radial_distance``.
         Adapted from https://github.com/bccp/nbodykit/blob/master/nbodykit/cosmology/cosmology.py.
+
+        Parameters
+        ----------
+        name : string
+            Attribute name.
+
+        Returns
+        -------
+        getattr : object
+            Attribute value.
+
+
+        Raises
+        ------
+        AttributeError
+            If engine is not set
+            If attribute is not found in any of engine's sections
         """
         if self._engine is None:
             raise AttributeError('Attribute {} not found; try setting an engine ("set_engine")?'\
@@ -1788,9 +1888,21 @@ class Cosmology(BaseCosmoParams):
                                  name, self.engine.__class__.__name__))
 
     def __eq__(self, other):
-        r"""Is ``other`` same as ``self``?"""
-        return type(other) == type(self) and _deepeq(other._params, self._params) and \
-        other._engine == self._engine
+        r"""
+        Is ``other`` same as ``self``?
+
+        Parameters
+        ----------
+        other : :class:`Cosmology`
+            Other cosmology class.
+
+        Returns
+        -------
+        is_equal : bool
+            Whether ``other`` is equal to ``self``.
+        """
+        return (type(other) is type(self)) and _deepeq(other._params, self._params) and \
+        (other._engine is self._engine)
 
 
 class MetaSection(type(object)):
@@ -1812,7 +1924,7 @@ class BaseSection(object, metaclass=MetaSection):
         self._np = engine._np
 
     def tree_flatten(self):
-        return ({name: value for name, value in self.__dict__.items() if name not in 
+        return ({name: value for name, value in self.__dict__.items() if name not in
                  ['_engine', '_np']},), {'_np': self._np}
 
     @classmethod
@@ -1896,6 +2008,15 @@ def merge_params(args, moreargs, **kwargs):
     moreargs : dict
         Parameter dictionary to be merged into ``args``.
 
+    **kwargs
+        Extra arguments to be passed to :func:`find_conflicts`
+        when looking for conflicting parameters to be popped from ``args``:
+            - name : string
+                Parameter name.
+
+            - conflicts : list of strings, tuple of strings, list of tuples, default=tuple()
+                List of conflicting parameter names.
+
     Returns
     -------
     args : dict
@@ -1904,20 +2025,44 @@ def merge_params(args, moreargs, **kwargs):
     for name in moreargs.keys():
         # pop those conflicting with me from the old pars
         for eq in find_conflicts(name, **kwargs):
-            if eq in args: args.pop(eq)
+            if eq in args:
+                args.pop(eq)
 
     args.update(moreargs)
     return args
 
 
 def check_params(args, **kwargs):
-    """Check for conflicting parameters in ``args`` parameter dictionary."""
+    """
+    Check for conflicting parameters in ``args`` parameter dictionary.
+
+    Parameters
+    ----------
+    args : dict
+        Parameter dictionary.
+
+    **kwargs
+        Extra arguments to be passed to :func:`find_conflicts`
+        when looking for conflicting parameters to be popped from ``args``:
+            - name : string
+                Parameter name.
+
+            - conflicts : list of strings, tuple of strings, list of tuples, default=tuple()
+                List of conflicting parameter names.
+
+    Raises
+    ------
+    CosmologyInputError
+        If conflicting parameters are both present in ``args``.
+    """
     conf = {}
     for name in args:
         conf[name] = []
         for eq in find_conflicts(name, **kwargs):
-            if eq == name: continue
-            if eq in args: conf[name].append(eq)
+            if eq == name:
+                continue
+            if eq in args:
+                conf[name].append(eq)
 
     for name in conf:
         if conf[name]:
@@ -1935,10 +2080,13 @@ def find_conflicts(name, conflicts=tuple()):
     name : string
         Parameter name.
 
+    conflicts : list of strings, tuple of strings, list of tuples, default=tuple()
+        List of conflicting parameter names.
+
     Returns
     -------
-    conflicts : tuple
-        Conflicting parameter names.
+    conf : string, tuple
+        Conflicting parameter names if name is in conflicts, else empty tuple.
     """
     # dict that defines input parameters that conflict with each other
     for conf in conflicts:
@@ -1947,7 +2095,7 @@ def find_conflicts(name, conflicts=tuple()):
     return ()
 
 
-@utils.addproperty('H0', 'h', 'N_ur', 'N_ncdm', 'm_ncdm', 'm_ncdm_tot', 'N_eff', 'T0_cmb', 
+@utils.addproperty('H0', 'h', 'N_ur', 'N_ncdm', 'm_ncdm', 'm_ncdm_tot', 'N_eff', 'T0_cmb',
                    'T0_ncdm', 'w0_fld', 'wa_fld', 'cs2_fld',
                    'Omega0_cdm', 'Omega0_b', 'Omega0_k', 'K', 'Omega0_g', 'Omega0_ur', 'Omega0_r',
                    'Omega0_pncdm', 'Omega0_pncdm_tot', 'Omega0_ncdm', 'Omega0_ncdm_tot',
@@ -1982,14 +2130,41 @@ class BaseBackground(BaseSection):
         If ``species`` is ``None`` returned shape is (N_ncdm,) if ``z`` is a scalar,
         else (N_ncdm, len(z)).
         Else if ``species`` is between 0 and N_ncdm, return density for this species.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        species : list, int, default=None
+            Species index (0-based). If ``None``, return all species.
+
+        Returns
+        -------
+        rho_ncdm : array
+            Energy density of given ``species`` at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
         """
         params = {'h': self._h, 'T_cmb': self._T0_cmb, 'T_ncdm_over_cmb': self._T0_ncdm /\
                   self._T0_cmb, 'm_ncdm': self._m_ncdm}
         return BaseEngine._get_ncdm(params, z=z, species=species, out='rho')
 
     def rho_ncdm_tot(self, z):
-        r"""Total comoving density of non-relativistic part of massive neutrinos,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Total comoving density of non-relativistic part of massive neutrinos,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_ncdm_tot : float, array
+            Total energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self._np.sum(self.rho_ncdm(z, species=None), axis=0)
 
     @utils.flatarray()
@@ -2000,77 +2175,235 @@ class BaseBackground(BaseSection):
         If ``species`` is ``None`` returned shape is (N_ncdm,) if ``z`` is a scalar,
         else (N_ncdm, len(z)).
         Else if ``species`` is between 0 and N_ncdm, return pressure for this species.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        species : list, int, default=None
+            Species index (0-based). If ``None``, return all species.
+
+        Returns
+        -------
+        p_ncdm : array
+            Pressure at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
         """
         params = {'h': self._h, 'T_cmb': self._T0_cmb, 'T_ncdm_over_cmb': self._T0_ncdm /\
                 self._T0_cmb, 'm_ncdm': self._m_ncdm}
         return BaseEngine._get_ncdm(params, z=z, species=species, out='p')
 
     def p_ncdm_tot(self, z):
-        r"""Total pressure of non-relativistic part of massive neutrinos, 
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Total pressure of non-relativistic part of massive neutrinos,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        p_ncdm_tot : float, array
+            Total non-relativistic part of massive neutrino pressure at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self._np.sum(self.p_ncdm(z, species=None), axis=0)
 
     @utils.flatarray()
     def rho_g(self, z):
-        r"""Comoving density of photons :math:`\rho_{g}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving density of photons :math:`\rho_{g}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_g : float, array
+            Comoving photon energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self.Omega0_g * (1 + z) * constants.rho_crit_over_Msunph_per_Mpcph3
 
     @utils.flatarray()
     def rho_b(self, z):
-        r"""Comoving density of baryons :math:`\rho_{b}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving density of baryons :math:`\rho_{b}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_b : float, array
+            Comoving baryon energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self.Omega0_b * self._np.ones_like(z) * constants.rho_crit_over_Msunph_per_Mpcph3
 
     @utils.flatarray()
     def rho_ur(self, z):
-        r"""Comoving density of massless neutrinos :math:`\rho_{ur}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving density of massless neutrinos :math:`\rho_{ur}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_ur : float, array
+            Comoving massless neutrino energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self.Omega0_ur * (1 + z) * constants.rho_crit_over_Msunph_per_Mpcph3
 
     def rho_r(self, z):
-        r"""Comoving density of radiation :math:`\rho_{r}`,
+        r"""
+        Comoving density of radiation :math:`\rho_{r}`,
         including photons and relativistic part of massive and massless neutrinos,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_r : float, array
+            Comoving radiation energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self.rho_g(z) + self.rho_ur(z) + 3. * self.p_ncdm_tot(z)
 
     @utils.flatarray()
     def rho_cdm(self, z):
-        r"""Comoving density of cold dark matter :math:`\rho_{cdm}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving density of cold dark matter :math:`\rho_{cdm}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_cdm : float, array
+            Comoving cold dark matter energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self.Omega0_cdm * self._np.ones_like(z) * constants.rho_crit_over_Msunph_per_Mpcph3
 
     @utils.flatarray()
     def rho_m(self, z):
-        r"""Comoving density of matter :math:`\rho_{m}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving density of matter :math:`\rho_{m}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_m : float, array
+            Comoving matter energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+            rho_cdm + rho_b + rho_ncdm_tot - 3 * p_ncdm_tot
+        """
         return self.rho_cdm(z) + self.rho_b(z) + self.rho_ncdm_tot(z) - 3. * self.p_ncdm_tot(z)
 
     @utils.flatarray()
     def rho_k(self, z):
-        r"""Comoving density of curvature :math:`\rho_{k}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving density of curvature :math:`\rho_{k}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_k : float, array
+            Comoving curvature energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self.Omega0_k / (1 + z) * constants.rho_crit_over_Msunph_per_Mpcph3
 
     @utils.flatarray()
     def rho_Lambda(self, z):
-        r"""Comoving density of cosmological constant :math:`\rho_{\Lambda}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving density of cosmological constant :math:`\rho_{\Lambda}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_Lambda : float, array
+            Comoving cosmological constant energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+        """
         return self.Omega0_Lambda / (1 + z)**3 * constants.rho_crit_over_Msunph_per_Mpcph3
 
     @utils.flatarray()
     def rho_fld(self, z):
-        r"""Comoving density of dark energy fluid :math:`\rho_{\mathrm{fld}}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving density of dark energy fluid :math:`\rho_{\mathrm{fld}}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_fld : float, array
+            Comoving dark energy fluid energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`
+        """
         return self.Omega0_fld * (1 + z) ** (3. * (1 + self.w0_fld + self.wa_fld)) *\
             self._np.exp(3. * self.wa_fld * (1. / (1 + z) - 1)) *\
                 constants.rho_crit_over_Msunph_per_Mpcph3 / (1 + z)**3
 
     @utils.flatarray()
     def rho_de(self, z):
-        r"""Total comoving density of dark energy :math:`\rho_{\mathrm{de}}`
+        r"""
+        Total comoving density of dark energy :math:`\rho_{\mathrm{de}}`
         (fluid + cosmological constant),
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_de : float, array
+            Comoving dark energy density (fluid + cosmological constant) at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`
+        """
         # return self.rho_fld(z) + self.rho_Lambda(z)
         # Omega0_de for autodiff
         return self.Omega0_de * (1 + z) ** (3. * (self.w0_fld + self.wa_fld)) *\
@@ -2079,8 +2412,22 @@ class BaseBackground(BaseSection):
 
     @utils.flatarray()
     def rho_tot(self, z):
-        r"""Comoving total density :math:`\rho_{\mathrm{tot}}`,
-        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`."""
+        r"""
+        Comoving total density :math:`\rho_{\mathrm{tot}}`,
+        in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_tot : float, array
+            Comoving total energy density at ``z``,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`
+            rho_cdm + rho_b + rho_ncdm_tot + rho_g + rho_ur + rho_de
+        """
         m = self.rho_cdm(z) + self.rho_b(z) + self.rho_ncdm_tot(z)  # - 3 * self.p_ncdm_tot(z)
         r = self.rho_g(z) + self.rho_ur(z)  # + 3 * self.p_ncdm_tot(z)
         de = self.rho_de(z)
@@ -2089,7 +2436,7 @@ class BaseBackground(BaseSection):
     @utils.flatarray()
     def rho_crit(self, z):
         r"""
-        Comoving critical density excluding curvature :math:`\rho_{c}`,
+        Comoving critical density :math:`\rho_{c}`,
         in :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
 
         This is defined as:
@@ -2097,24 +2444,71 @@ class BaseBackground(BaseSection):
         .. math::
 
               \rho_{\mathrm{crit}}(z) = \frac{3 H(z)^{2}}{8 \pi G}.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        rho_c : float, array
+            Comoving critical energy density,
+            in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
         """
         return self.rho_tot(z) + self.rho_k(z)
 
     @utils.flatarray()
     def efunc(self, z):
-        r"""Function giving :math:`E(z)`, where the Hubble parameter is defined as
-        :math:`H(z) = H_{0} E(z)`, unitless."""
+        r"""
+        Function giving :math:`E(z)`, where the Hubble parameter is defined as
+        :math:`H(z) = H_{0} E(z)`, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        E_z : float, array
+            H(z) / H0
+        """
         return self._np.sqrt(self.rho_crit(z) * (1 + z)**3 /\
         constants.rho_crit_over_Msunph_per_Mpcph3)
 
     @utils.flatarray()
     def hubble_function(self, z):
-        r"""Hubble function ``ba.index_bg_H``, in :math:`\mathrm{km}/\mathrm{s}/\mathrm{Mpc}`."""
+        r"""
+        Hubble function ``ba.index_bg_H``, in :math:`\mathrm{km}/\mathrm{s}/\mathrm{Mpc}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        H_z : float, array
+            Hubble constant at ``z``.
+        """
         return self.efunc(z) * self.H0
 
     @utils.flatarray()
     def T_cmb(self, z):
-        r"""The CMB temperature, in :math:`K`."""
+        r"""
+        The CMB temperature, in :math:`K`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        T_cmb : float, array
+            The CMB temperature, at ``z``.
+        """
         return self.T0_cmb * (1 + z)
 
     @utils.flatarray()
@@ -2122,38 +2516,123 @@ class BaseBackground(BaseSection):
         r"""
         Return the ncdm temperature (massive neutrinos), in :math:`K`.
         Returned shape is (N_ncdm,) if ``z`` is a scalar, else (N_ncdm, len(z)).
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        species : list, int, default=None
+            Species index (0-based). If ``None``, return all species.
+
+        Returns
+        -------
+        T0_ncdm : float, array
+            Temperature of ncdm for the given ``species`` at ``z``.
         """
         return self.T0_ncdm[species if species is not None else Ellipsis, None] * (1 + z)
 
     @utils.flatarray()
     def Omega_cdm(self, z):
-        r"""Density parameter of cold dark matter, unitless."""
+        r"""
+        Density parameter of cold dark matter, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_cdm : float, array
+            Density parameter of cold dark matter at ``z``.
+        """
         return self.rho_cdm(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_b(self, z):
-        r"""Density parameter of baryons, unitless."""
+        r"""
+        Density parameter of baryons, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_b : float, array
+            Density parameter of baryons at ``z``.
+        """
         return self.rho_b(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_k(self, z):
-        r"""Density parameter of curvature, unitless."""
+        r"""
+        Density parameter of curvature, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_k : float, array
+            Density parameter of curvature at ``z``.
+        """
         return self.rho_k(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_g(self, z):
-        r"""Density parameter of photons, unitless."""
+        r"""
+        Density parameter of photons, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_g : float, array
+            Density parameter of photons at ``z``.
+        """
         return self.rho_g(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_ur(self, z):
-        r"""Density parameter of massless neutrinos, unitless."""
+        r"""
+        Density parameter of massless neutrinos, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_ur : float, array
+            Density parameter of massless neutrinos at ``z``.
+        """
         return self.rho_ur(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_r(self, z):
-        r"""Density parameter of radiation, including photons and
-        relativistic part of massive and massless neutrinos, unitless."""
+        r"""
+        Density parameter of radiation, including photons and
+        relativistic part of massive and massless neutrinos, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_r : float, array
+            Density parameter of radiation at ``z``.
+        """
         return self.rho_r(z) / self.rho_crit(z)
 
     @utils.flatarray()
@@ -2161,6 +2640,16 @@ class BaseBackground(BaseSection):
         r"""
         Density parameter of non-relativistic (matter-like) component, including
         non-relativistic part of massive neutrino, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_m : float, array
+            Density parameter of non-relativistic (matter-like) component at ``z``.
         """
         return self.rho_m(z) / self.rho_crit(z)
 
@@ -2171,43 +2660,131 @@ class BaseBackground(BaseSection):
         If ``species`` is ``None`` returned shape is (N_ncdm,) if ``z`` is a scalar,
         else (N_ncdm, len(z)).
         Else if ``species`` is between 0 and N_ncdm, return density for this species.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        species : list, int, default=None
+            Species index (0-based). If ``None``, return all species.
+
+        Returns
+        -------
+        Omega_ncdm : float, array
+            Density parameter of non-relativistic (matter-like) component at ``z``, unitless.
         """
         return self.rho_ncdm(z, species=species) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_ncdm_tot(self, z):
-        r"""Total density parameter of massive neutrinos, unitless."""
+        r"""
+        Total density parameter of massive neutrinos at ``z``, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_ncdm_tot : float, array
+            Density parameter of total massive neutrino component at ``z``, unitless.
+        """
         return self.rho_ncdm_tot(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_pncdm(self, z, species=None):
         r"""
-        Density parameter of pressure of non-relativistic part of massive neutrinos, unitless.
-        If ``species`` is ``None`` returned shape is (N_ncdm,) if ``z`` is a scalar,
+        Density parameter of pressure of non-relativistic part of massive neutrinos at ``z``,
+        unitless. If ``species`` is ``None`` returned shape is (N_ncdm,) if ``z`` is a scalar,
         else (N_ncdm, len(z)).
         Else if ``species`` is between 0 and N_ncdm, return density for this species.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        species : list, int, default=None
+            Species index (0-based). If ``None``, return all species.
+
+        Returns
+        -------
+        Omega_pncdm : float, array
+            Density parameter of pressure of non-relativistic part of massive neutrinos at ``z``
+            for given ``species``, unitless.
         """
         return 3 * self.p_ncdm(z, species=species) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_pncdm_tot(self, z):
-        r"""Total density parameter of pressure of non-relativistic part of massive neutrinos,
-        unitless."""
+        r"""
+        Total density parameter of pressure of non-relativistic part of massive neutrinos,
+        unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_pncdm_tot : float, array
+            Total density parameter of pressure of non-relativistic part of massive neutrinos
+            at ``z``, unitless.
+        """
         return 3 * self.p_ncdm_tot(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_Lambda(self, z):
-        r"""Density of cosmological constant, unitless."""
+        r"""
+        Density of cosmological constant, unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_Lambda : float, array
+            Density parameter of cosmological constant at ``z``.
+        """
         return self.rho_Lambda(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_fld(self, z):
-        r"""Density of cosmological constant, unitless."""
+        r"""
+        Density of dark energy fluid, unitless
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_fld : float, array
+            Density of dark energy fluid at ``z``.
+        """
         return self.rho_fld(z) / self.rho_crit(z)
 
     @utils.flatarray()
     def Omega_de(self, z):
-        r"""Density of total dark energy (fluid + cosmological constant), unitless."""
+        r"""
+        Density of total dark energy (fluid + cosmological constant), unitless.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        Omega_de : float, array
+            Density of total dark energy at ``z``.
+        """
         return self.rho_de(z) / self.rho_crit(z)
 
     @utils.flatarray()
@@ -2217,6 +2794,16 @@ class BaseBackground(BaseSection):
 
         See eq. 18 of `astro-ph/9905116 <https://arxiv.org/abs/astro-ph/9905116>`_
         for :math:`D_{A}(z)`.
+
+        Parameters
+        ----------
+        z : float, array
+            Redshift.
+
+        Returns
+        -------
+        angular_diameter_distance : float, array
+            angular diameter distance to ``z``, in :math:`\mathrm{Mpc}/h`.
         """
         from .jax import select, switch
         K = self.K  # in (h/Mpc)^2
@@ -2234,6 +2821,20 @@ class BaseBackground(BaseSection):
         where :math:`S_{K}` is the identity if :math:`K = 0`, :math:`\sin` if :math:`K < 0`
         and :math:`\sinh` if :math:`K > 0`.
         camb's ``angular_diameter_distance2(z1, z2)`` is not used as it returns 0 when z2 < z1.
+
+        Parameters
+        ----------
+        z1 : float, array
+            Redshift of observer.
+
+        z2 : float, array
+            Redshift of object.
+
+        Returns
+        -------
+        angular_diameter_distance_2 : float, array
+            Angular diameter distance of object at :math:`z_{2}` as seen by observer at
+            :math:`z_{1}`, in :math:`\mathrm{Mpc}/h`.
         """
         from .jax import select, switch, exception
 
@@ -2251,15 +2852,27 @@ class BaseBackground(BaseSection):
         def close(chi): return self._np.sin(self._np.sqrt(K) * chi) / self._np.sqrt(K)
         def open(chi): return self._np.sinh(self._np.sqrt(-K) * chi) / self._np.sqrt(-K)
         return switch(index, [flat, close, open],
-                      self.comoving_radial_distance(z2) - self.comoving_radial_distance(z1)) / (1 + z2)
+                      self.comoving_radial_distance(z2) - self.comoving_radial_distance(z1)) /\
+                        (1 + z2)
 
     @utils.flatarray()
     def comoving_transverse_distance(self, z):
         r"""
         Comoving transverse distance, in :math:`\mathrm{Mpc}/h`.
+        Can also use with :func:`comoving_angular_distance`
 
         See eq. 16 of `astro-ph/9905116 <https://arxiv.org/abs/astro-ph/9905116>`_
         for :math:`D_{M}(z)`.
+
+        Parameters
+        ----------
+        z : float, array
+            Redshift
+
+        Returns
+        -------
+        comoving_transverse_distance : float, array
+            comoving distance to redshift ``z``, in :math:`\mathrm{Mpc}/h`.
         """
         return self.angular_diameter_distance(z) * (1. + z)
 
@@ -2272,6 +2885,16 @@ class BaseBackground(BaseSection):
 
         See eq. 21 of `astro-ph/9905116 <https://arxiv.org/abs/astro-ph/9905116>`_
         for :math:`D_{L}(z)`.
+
+        Parameters
+        ----------
+        z : float, array
+            Redshift
+
+        Returns
+        -------
+        comoving_transverse_distance : float, array
+            comoving distance to redshift ``z``, in :math:`\mathrm{Mpc}/h`.
         """
         return self.angular_diameter_distance(z) * (1. + z)**2
 
@@ -2297,7 +2920,7 @@ class BaseBackground(BaseSection):
             raise CosmologyComputationError from exc
 
 
-from .jax import Interpolator1D, odeint
+
 
 
 
@@ -2331,6 +2954,20 @@ class DefaultBackground(BaseBackground):
         If ``species`` is ``None`` returned shape is (N_ncdm,) if ``z`` is a scalar,
         else (N_ncdm, len(z)).
         Else if ``species`` is between 0 and N_ncdm, return density for this species.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        species : list, int, default=None
+            Species index (0-based). If ``None``, return all species.
+
+        Returns
+        -------
+        rho_ncdm : float, array
+            Comoving density of non-relativistic part of massive neutrinos for each ``species``
+            at ``z``, in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
         """
         name = 'rho_ncdm'
         func = getattr(BaseBackground, name)
@@ -2351,6 +2988,20 @@ class DefaultBackground(BaseBackground):
         If ``species`` is ``None`` returned shape is (N_ncdm,) if ``z`` is a scalar,
         else (N_ncdm, len(z)).
         Else if ``species`` is between 0 and N_ncdm, return pressure for this species.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        species : list, int, default=None
+            Species index (0-based). If ``None``, return all species.
+
+        Returns
+        -------
+        p_ncdm : float, array
+            Comoving pressure of non-relativistic part of massive neutrinos for each ``species``
+            at ``z``, in units of :math:`10^{10} M_{\odot}/h / (\mathrm{Mpc}/h)^{3}`.
         """
         name = 'p_ncdm'
         func = getattr(BaseBackground, name)
@@ -2365,7 +3016,19 @@ class DefaultBackground(BaseBackground):
 
     @utils.flatarray()
     def time(self, z):
-        r"""Proper time (age of universe), in :math:`\mathrm{Gy}`."""
+        r"""
+        Proper time (age of universe), in :math:`\mathrm{Gy}`.
+
+        Parameters
+        ----------
+        z : float, array, default=0
+            Redshift.
+
+        Returns
+        -------
+        time : float, array
+            Proper time (age of universe) at ``z``, in :math:`\mathrm{Gy}`.
+        """
         name = 'time'
         if name not in self._cache:
             def integrand(y, z):
@@ -2380,7 +3043,14 @@ class DefaultBackground(BaseBackground):
 
     @property
     def age(self):
-        r"""The current age of the Universe, in :math:`\mathrm{Gy}`."""
+        r"""
+        The current age of the Universe, in :math:`\mathrm{Gy}`.
+
+        Returns
+        -------
+        age : float
+            The current age of the Universe, in :math:`\mathrm{Gy}`.
+        """
         # Faster to not instiante Interpolator1D
         name = 'age'
         if name not in self._cache:
@@ -2399,6 +3069,16 @@ class DefaultBackground(BaseBackground):
 
         See eq. 15 of `astro-ph/9905116 <https://arxiv.org/abs/astro-ph/9905116>`_
         for :math:`D_C(z)`.
+
+        Parameters
+        ----------
+        z : float, array
+            Redshift.
+
+        Returns
+        -------
+        comoving_radial_distance : float, array
+            Comoving radial distance to ``z``, in :math:`\mathrm{Mpc}/h`.
         """
         name = 'comoving_radial_distance'
         if name not in self._cache:
@@ -2421,7 +3101,8 @@ class DefaultBackground(BaseBackground):
             if mass == 'm':
                 Omega_mass = self.Omega_m
             elif mass == 'cb':
-                Omega_mass = lambda z: self.Omega_cdm(z) + self.Omega_b(z)
+                def Omega_mass(z):
+                    return self.Omega_cdm(z) + self.Omega_b(z)
             else:
                 raise ValueError("mass must be one of ['m', 'cb']")
 
