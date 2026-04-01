@@ -460,8 +460,8 @@ class BaseCosmoParams(BaseClass):
                 'K' : curvature parameter in (h/Mpc)^2,
                 'N_ncdm' : number of non-cold dark matter species,
                 'N_eff' : effective number of relativistic species,
-                'theta_cosmomc' : angular size of the sound horizon
-                    at decoupling (CosmoMC definition),
+                'theta_cosmomc' : sound horizon at decoupling over angular diameter distance
+                (CosmoMC definition),
                 'theta_MC_100' : 100 * 'theta_cosmomc'.
 
         default_value : float, optional, default=None
@@ -974,8 +974,8 @@ class Cosmology(BaseCosmoParams):
                                     ('A_s', 'logA', 'sigma8'),
                                     ('tau_reio', 'z_reio')]
     _alias_parameters = {'omega_b': ('ombh2',), 'omega_cdm': ('omch2',),
-                         'Omega_k': ('omk','Omega0_k'), 'm_ncdm': ('mnu',), 'N_eff': ('nnu',),
-                        'n_s': ('ns',), 'alpha_s': ('nrun',),
+                         'Omega_k': ('omk', 'Omega0_k',),'m_ncdm': ('mnu',),
+                         'N_eff': ('nnu',), 'n_s': ('ns',), 'alpha_s': ('nrun',),
                         'beta_s': ('nrunrun',), 'tau_reio': ('tau',),
                         'Omega_m': ('Omega0_m',), 'Omega_cdm': ('Omega0_cdm', 'Omega_c'),
                         'Omega_b': ('Omega0_b',),
@@ -1901,8 +1901,8 @@ class Cosmology(BaseCosmoParams):
         is_equal : bool
             Whether ``other`` is equal to ``self``.
         """
-        return (type(other) is type(self)) and _deepeq(other._params, self._params) and \
-        (other._engine is self._engine)
+        return type(other) is type(self) and _deepeq(other._params, self._params) and \
+        other._engine == self._engine
 
 
 class MetaSection(type(object)):
