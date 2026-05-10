@@ -3093,6 +3093,31 @@ class DefaultBackground(BaseBackground):
 
     @utils.flatarray()
     def growth_factor(self, z, mass='m', znorm=None):
+        """
+        Linear growth factor.
+
+        Parameters
+        ----------
+        z : float, array
+            Redshift.
+
+        mass : str, default='m'
+            The source of the growth.
+            Can be 'm' for Omega_m, or 'cb' for Omega_cdm + Omega_b.
+
+        znorm : float, default=None
+            Redshift to normalize the growth factor to 1.
+
+        Returns
+        -------
+        growth_factor : float, array
+            Linear growth factor at ``z``. Normalized to 1 at ``znorm``.
+
+        Raises
+        ------
+        ValueError
+            If ``mass`` is not one of ['m', 'cb'].
+        """
         from .jax import odeint
         name_factor = 'growth_factor_{}'.format(mass)
         name_rate = 'growth_rate_{}'.format(mass)
@@ -3139,6 +3164,22 @@ class DefaultBackground(BaseBackground):
 
     @utils.flatarray()
     def growth_rate(self, z, mass='m'):
+        r"""
+        Linear growth rate :math:`f = d \ln D / d \ln a`.
+
+        Parameters
+        ----------
+        z : float, array
+            Redshift.
+
+        mass : str, default='m'
+            The source of the growth. Can be 'm' for Omega_m, or 'cb' for Omega_cdm + Omega_b.
+
+        Returns
+        -------
+        growth_rate : float, array
+            Linear growth rate at ``z``.
+        """
         name_rate = 'growth_rate_{}'.format(mass)
         if name_rate not in self._cache:
             self.growth_factor(z=0., mass=mass)
